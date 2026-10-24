@@ -1,0 +1,44 @@
+services:
+  jaeger:
+    container_name: jaeger
+    image: jaegertracing/jaeger:2.20.0
+    ports:
+      - "16686:16686"
+      - "4318:4318" # OTLP over HTTP: the gateway sends its spans here
+
+  loki:
+    container_name: loki
+    image: grafana/loki:3.7.9
+    ports:
+      - "3100:3100" # OTLP over HTTP at /otlp/v1/logs: the gateway sends its logs here
+
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:v3.14.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Linux; built in on Docker Desktop
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:13.1.8
+    ports:
+      - "3000:3000"
+    environment:
+      # Local demo only: no login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/payment-gateway.json
+    volumes:
+      - ./observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./observability/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./observability/grafana/payment-gateway.json:/var/lib/grafana/dashboards/payment-gateway.json:ro
+    depends_on:
+      - prometheus
+      - jaeger
+      - loki

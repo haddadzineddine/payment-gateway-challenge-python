@@ -1,0 +1,42 @@
+# Shown on http://localhost:9090/alerts. In production, Alertmanager would page the on-call.
+groups:
+  - name: payment-gateway
+    rules:
+      - alert: GatewayDown
+        expr: up{job="payment-gateway"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: The gateway does not answer Prometheus scrapes.
+
+      - alert: BankFailing
+        expr: |
+          sum(rate(bank_request_duration_seconds_count{outcome!~"authorized|declined"}[5m]))
+            / sum(rate(bank_request_duration_seconds_count[5m])) > 0.05
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: More than 5% of bank calls fail (timeouts, refused, bad answers).
+
+      - alert: PaymentsLeftPending
+        expr: increase(payments_total{status="Pending"}[10m]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: Bank answers were lost; these payments need reconciliation.
+
+      - alert: DeclineSpike
+        expr: |
+          sum(rate(payments_total{status="Declined"}[5m]))
+            / sum(rate(payments_total{status=~"Authorized|Declined"}[5m])) > 0.5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: Over half of payments are declined; check the bank or a merchant integration.
+
+      - alert: SlowRequests
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{handler=~"/v1/payments.*"}[5m]))) > 1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: p95 latency of the payments API is over 1 s.
