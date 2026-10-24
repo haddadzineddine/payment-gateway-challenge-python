@@ -35,3 +35,14 @@ format:
 lint:
 	@poetry run ruff check .
 	@poetry run ruff format --check .
+
+.PHONY: docker-build
+docker-build:
+	@docker build -t payment-gateway .
+
+.PHONY: docker-run
+docker-run:
+	@docker run --rm -p 8000:8000 \
+		--add-host=host.docker.internal:host-gateway \
+		-e BANK_URL=http://host.docker.internal:8080 \
+		payment-gateway

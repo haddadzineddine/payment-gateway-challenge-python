@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: pipx install poetry==2.5.1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: poetry
+
+      - run: make install
+
+      - run: make lint
+
+      - name: Start bank simulator
+        run: |
+          docker compose up -d
+          timeout 60 bash -c 'until curl -sf localhost:2525/imposters > /dev/null; do sleep 1; done'
+
+      # -rs lists skipped tests, so e2e tests skipped by a dead simulator are visible.
+      - run: poetry run python -m pytest -rs --cov=src --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build -t payment-gateway .
+
+      - name: Container starts and is healthy
+        run: |
+          docker run -d --name gateway -p 8000:8000 payment-gateway
+          timeout 30 bash -c 'until curl -sf localhost:8000/health; do sleep 1; done'
