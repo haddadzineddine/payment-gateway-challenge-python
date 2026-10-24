@@ -4,17 +4,53 @@ version = "0.1.0"
 description = "Payment Gateway API"
 authors = ["Author <author@example.com>"]
 readme = "README.md"
+packages = [
+    { include = "payments", from = "src" },
+    { include = "app.py", from = "src" },
+    { include = "config.py", from = "src" },
+    { include = "observability.py", from = "src" },
+]
 
 [tool.poetry.dependencies]
-python = "^3.8"
-uvicorn = "^0.17.6"
-gunicorn = "^20.1.0"
-fastapi = "^0.103.2"
+python = "^3.12"
+uvicorn = "^0.54.0"
+fastapi = "^0.161.1"
+httpx = "^0.28.1"
+pydantic-settings = "^2.16.1"
+opentelemetry-sdk = "^1.45.1"
+opentelemetry-exporter-otlp-proto-http = "^1.45.1"
+opentelemetry-instrumentation-fastapi = "^0.66b1"
+opentelemetry-instrumentation-httpx = "^0.66b1"
+prometheus-fastapi-instrumentator = "^8.1.0"
+python-json-logger = "^4.2.0"
+opentelemetry-instrumentation-logging = "^0.66b1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^6.2.4"
-requests = "^2.31.0"
-httpx = "^0.25.0"
+pytest = "^9.1.1"
+pytest-asyncio = "^1.4.0"
+pytest-cov = "^7.1.0"
+ruff = "^0.17.2"
+httpx2 = "^2.16.0"  # starlette TestClient wants it; without it: StarletteDeprecationWarning
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src", "."]
+python_files = ["*_spec.py"]
+addopts = "--import-mode=importlib"
+markers = ["e2e: hits the real bank simulator (skipped if not running)"]
+# upstream: starlette.testclient uses a deprecated anyio alias; drop once starlette fixes it
+filterwarnings = ["ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pyupgrade, bugbear, simplify, naming, ruff-specific
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "N", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "config", "payments", "tests"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
