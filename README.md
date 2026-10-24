@@ -240,6 +240,9 @@ Grafana is provisioned from `observability/grafana/`: Prometheus, Jaeger and Lok
 - In a **log line**, the `trace_id` field opens the trace in Jaeger.
 - On a **span**, "Logs for this span" opens its log lines in Loki.
 
+Loki and Jaeger never talk to each other (dotted line in the diagram): both store the same `trace_id`, and Grafana
+builds the links from it.
+
 No OTel collector locally: the gateway sends straight to Jaeger and Loki. In production a collector would sit in
 between (see [below](#observability)).
 
