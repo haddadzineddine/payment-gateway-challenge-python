@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     docs_enabled: bool = True
 
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    otel_exporter_otlp_endpoint: AnyHttpUrl | None = None
+    otel_exporter_otlp_logs_endpoint: AnyHttpUrl | None = None  # full URL, as in the OTel spec
 
     bank_url: AnyHttpUrl = AnyHttpUrl("http://localhost:8080")
     bank_timeout_seconds: PositiveFloat = 5.0

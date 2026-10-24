@@ -1,8 +1,10 @@
+import contextlib
 import json
 from uuid import uuid4
 
 import httpx
 import pytest
+from prometheus_client import REGISTRY
 
 from payments.adapters.bank.mountebank import MountebankClient
 from payments.domain.errors import AcquirerUnavailableError
@@ -114,3 +116,25 @@ async def test_marks_failure_safe_to_retry_only_when_bank_did_not_process(handle
         await bank_answering(handler).authorize(REQUEST, PAYMENT_ID)
 
     assert error.value.safe_to_retry is safe_to_retry
+
+
+@pytest.mark.parametrize(
+    ("handler", "outcome"),
+    [
+        (respond(json=AUTHORIZED), "authorized"),
+        (respond(json={"authorized": False}), "declined"),
+        (fail_with(httpx.ReadTimeout), "timeout"),
+        (respond(503), "unavailable"),
+    ],
+)
+async def test_records_bank_latency_by_outcome(handler, outcome):
+    calls_before = _bank_calls(outcome)
+
+    with contextlib.suppress(AcquirerUnavailableError):
+        await bank_answering(handler).authorize(REQUEST, PAYMENT_ID)
+
+    assert _bank_calls(outcome) == calls_before + 1
+
+
+def _bank_calls(outcome: str) -> float:
+    return REGISTRY.get_sample_value("bank_request_duration_seconds_count", {"outcome": outcome}) or 0

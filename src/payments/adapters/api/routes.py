@@ -2,8 +2,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, FastAPI, Header, Request, Response
+from opentelemetry import trace
 
 from payments.adapters.api.errors import ErrorResponse, RejectedResponse, install_error_handlers
+from payments.adapters.metrics import IDEMPOTENT_REPLAYS, PAYMENTS
 from payments.application.payment_service import PaymentService
 from payments.domain.errors import PaymentNotFoundError
 from payments.domain.payment import Payment, PaymentRequest, PaymentStatus
@@ -54,7 +56,11 @@ async def create_payment(
 
     if processed.replayed:
         response.headers["Idempotent-Replayed"] = "true"
+        IDEMPOTENT_REPLAYS.inc()
+    else:
+        PAYMENTS.labels(status=payment.status.value).inc()
 
+    _add_payment_to_trace(payment, processed.replayed)
     return payment
 
 
@@ -72,6 +78,13 @@ async def get_payment(
 
     response.headers["Cache-Control"] = "no-store"
     return payment
+
+
+def _add_payment_to_trace(payment: Payment, replayed: bool) -> None:
+    span = trace.get_current_span()
+    span.set_attribute("payment.id", str(payment.id))
+    span.set_attribute("payment.status", payment.status.value)
+    span.set_attribute("payment.replayed", replayed)
 
 
 def _parse_payment_id(payment_id: str) -> UUID:

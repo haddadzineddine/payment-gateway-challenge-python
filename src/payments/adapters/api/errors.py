@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from payments.adapters.metrics import PAYMENTS
 from payments.domain.errors import AcquirerUnavailableError, IdempotencyKeyReusedError, PaymentNotFoundError
 from payments.domain.payment import PaymentStatus
 
@@ -42,6 +43,8 @@ def install_error_handlers(app: FastAPI) -> None:
 
 
 async def _reject_invalid_request(_: Request, error: RequestValidationError) -> JSONResponse:
+    PAYMENTS.labels(status=PaymentStatus.REJECTED.value).inc()
+
     # The message only, never the input: it may contain card data.
     field_errors = [FieldError(field=_field_name(detail["loc"]), message=detail["msg"]) for detail in error.errors()]
 

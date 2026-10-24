@@ -1,8 +1,10 @@
 import logging
+import time
 from uuid import UUID
 
 import httpx
 
+from payments.adapters.metrics import BANK_REQUEST_DURATION
 from payments.domain.errors import AcquirerUnavailableError
 from payments.domain.payment import PaymentRequest, PaymentStatus
 
@@ -18,15 +20,23 @@ class MountebankClient:
         self._http_client = http_client
 
     async def authorize(self, request: PaymentRequest, payment_id: UUID) -> PaymentStatus:
+        started_at = time.perf_counter()
+        outcome = "unknown"  # kept if the call is cancelled
+
         try:
             response = await self._post_payment(request, payment_id)
-            return _read_bank_answer(response)
+            status = _read_bank_answer(response)
+            outcome = status.value.lower()
+            return status
         except AcquirerUnavailableError as error:
+            outcome = error.reason
             logger.warning(
                 "bank_unavailable",
                 extra={"payment_id": str(payment_id), "reason": error.reason, "error": repr(error.__cause__)},
             )
             raise
+        finally:
+            BANK_REQUEST_DURATION.labels(outcome=outcome).observe(time.perf_counter() - started_at)
 
     async def _post_payment(self, request: PaymentRequest, payment_id: UUID) -> httpx.Response:
         headers = {"Idempotency-Key": str(payment_id)}
